@@ -156,12 +156,13 @@ The sandbox profile includes:
 
 ## 📦 Output Artifacts
 
-Each run generates files in `evidence/`:
-- `report_<timestamp>.json`
-- `screenshot_<timestamp>.png`
-- `dom_<timestamp>.html`
+Each scan now creates a dedicated run folder:
 
-`report_<timestamp>.json` includes `analysis_method`:
+- `evidence/run_<timestamp>/report.json`
+- `evidence/run_<timestamp>/screenshot.png`
+- `evidence/run_<timestamp>/dom.html`
+
+Each `report.json` includes `analysis_method`:
 - `llm-ollama`
 - `llm-openai`
 - `heuristic`

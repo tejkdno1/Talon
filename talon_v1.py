@@ -275,9 +275,11 @@ def analyze_url(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    screenshot_path = output_dir / f"screenshot_{ts}.png"
-    dom_path = output_dir / f"dom_{ts}.html"
-    report_path = output_dir / f"report_{ts}.json"
+    run_dir = output_dir / f"run_{ts}"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    screenshot_path = run_dir / "screenshot.png"
+    dom_path = run_dir / "dom.html"
+    report_path = run_dir / "report.json"
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -326,6 +328,7 @@ def analyze_url(
         browser.close()
 
     report["report_path"] = str(report_path)
+    report["run_dir"] = str(run_dir)
     return report
 
 
@@ -388,6 +391,7 @@ def main() -> None:
     print(f"Method:      {report['analysis_method']}")
     for reason in report["verdict"]["reasons"]:
         print(f"- {reason}")
+    print(f"Run Dir:     {report['run_dir']}")
     print(f"Report JSON: {report['report_path']}")
     print(f"Screenshot:  {report['evidence']['screenshot']}")
     print(f"DOM:         {report['evidence']['dom_snapshot']}")
