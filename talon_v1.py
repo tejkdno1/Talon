@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -102,8 +103,36 @@ def is_ip_host(host: str) -> bool:
     return bool(re.fullmatch(r"\d{1,3}(?:\.\d{1,3}){3}", host))
 
 
-def build_verdict(final_url: str, page_title: str) -> Verdict:
+def get_registrable_hint(host: str) -> str:
+    parts = [p for p in host.lower().split(".") if p]
+    if len(parts) >= 2:
+        return ".".join(parts[-2:])
+    return host.lower()
+
+
+def levenshtein_distance(a: str, b: str) -> int:
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, start=1):
+        curr = [i]
+        for j, cb in enumerate(b, start=1):
+            ins = curr[j - 1] + 1
+            delete = prev[j] + 1
+            replace = prev[j - 1] + (0 if ca == cb else 1)
+            curr.append(min(ins, delete, replace))
+        prev = curr
+    return prev[-1]
+
+
+def build_verdict(input_url: str, final_url: str, page_title: str) -> Verdict:
+    input_parsed = urlparse(input_url)
     parsed = urlparse(final_url)
+    input_host = (input_parsed.hostname or "").lower()
     host = (parsed.hostname or "").lower()
     path_query = f"{parsed.path} {parsed.query}".lower()
     reasons: list[str] = []
@@ -120,6 +149,19 @@ def build_verdict(final_url: str, page_title: str) -> Verdict:
     if "@" in final_url:
         score += 20
         reasons.append("URL contains '@' which can obscure real destination.")
+
+    if input_host and host and input_host != host:
+        score += 15
+        reasons.append(f"Input host redirected from '{input_host}' to '{host}'.")
+        input_base = get_registrable_hint(input_host)
+        final_base = get_registrable_hint(host)
+        edit_dist = levenshtein_distance(input_base, final_base)
+        similarity = difflib.SequenceMatcher(a=input_base, b=final_base).ratio()
+        if edit_dist <= 2 and similarity >= 0.7:
+            score += 35
+            reasons.append(
+                f"Possible typosquat: '{input_base}' is very similar to '{final_base}'."
+            )
 
     tld = host.rsplit(".", 1)[-1] if "." in host else ""
     if tld in SUSPICIOUS_TLDS:
@@ -360,7 +402,7 @@ def analyze_url(
                     llm_provider=llm_provider,
                     llm_model=llm_model,
                 )
-            verdict = llm_verdict or build_verdict(final_url, title)
+            verdict = llm_verdict or build_verdict(url, final_url, title)
             report = {
                 "input_url": url,
                 "final_url": final_url,
