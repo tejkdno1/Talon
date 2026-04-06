@@ -16,6 +16,9 @@ services:
       - /tmp:size=256m
     volumes:
       - ./evidence:/app/evidence
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - TALON_LLM_MODEL=${TALON_LLM_MODEL:-gpt-4o-mini}
     command:
       - "${TARGET_URL:-https://example.com}"
       - "--output-dir"

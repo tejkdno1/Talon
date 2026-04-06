@@ -11,7 +11,7 @@
 Talon is a practical phishing URL analysis tool that:
 - detonates suspicious links in headless Chromium,
 - captures forensic evidence (screenshot + DOM snapshot),
-- returns a basic heuristic phishing risk verdict.
+- returns an LLM-assisted phishing risk verdict (with heuristic fallback).
 
 ---
 
@@ -20,7 +20,8 @@ Talon is a practical phishing URL analysis tool that:
 - **🕵️ URL detonation:** opens a target URL safely in Playwright.
 - **🔁 Redirect awareness:** records the final resolved URL after redirects.
 - **🧾 Evidence capture:** stores full-page screenshot and DOM snapshot.
-- **📊 Structured output:** writes a JSON report with score, level, and reasons.
+- **🤖 LLM analysis:** uses an LLM for smarter risk reasoning.
+- **📊 Structured output:** writes a JSON report with score, level, reasons, and method.
 - **🧱 Docker sandbox mode:** runs analysis in a hardened container profile.
 
 ---
@@ -65,10 +66,29 @@ python3 -m playwright install chromium
 python3 talon_v1.py "https://example.com"
 ```
 
+With LLM enabled (default), set your API key:
+
+```bash
+export OPENAI_API_KEY="your_api_key_here"
+python3 talon_v1.py "https://example.com"
+```
+
 Optional:
 
 ```bash
 python3 talon_v1.py "example.com/login" --output-dir evidence --timeout-ms 20000
+```
+
+Force heuristic-only mode:
+
+```bash
+python3 talon_v1.py "https://example.com" --no-llm
+```
+
+Optional model override:
+
+```bash
+export TALON_LLM_MODEL="gpt-4o-mini"
 ```
 
 ---
@@ -102,6 +122,8 @@ Each run generates files in `evidence/`:
 - `report_<timestamp>.json`
 - `screenshot_<timestamp>.png`
 - `dom_<timestamp>.html`
+
+`report_<timestamp>.json` includes `analysis_method` (`llm` or `heuristic`).
 
 ---
 

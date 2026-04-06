@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
-"""
-Talon V1 (basic): URL detonation + evidence capture + heuristic verdict.
-"""
+"""Talon V1: URL detonation + evidence capture + heuristic/LLM verdict."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
@@ -14,6 +13,11 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from playwright.sync_api import sync_playwright
+
+try:
+    from openai import OpenAI
+except ImportError:
+    OpenAI = None
 
 
 SUSPICIOUS_TLDS = {
@@ -50,6 +54,7 @@ class Verdict:
     risk_score: int
     risk_level: str
     reasons: list[str]
+    method: str
 
 
 def normalize_url(raw_url: str) -> str:
@@ -109,10 +114,87 @@ def build_verdict(final_url: str, page_title: str) -> Verdict:
     if not reasons:
         reasons.append("No obvious phishing indicators found by V1 heuristics.")
 
-    return Verdict(risk_score=score, risk_level=level, reasons=reasons)
+    return Verdict(risk_score=score, risk_level=level, reasons=reasons, method="heuristic")
 
 
-def analyze_url(url: str, output_dir: Path, timeout_ms: int = 15000) -> dict:
+def strip_html_for_prompt(html: str, max_chars: int = 3000) -> str:
+    text = re.sub(r"<script[\s\S]*?</script>", " ", html, flags=re.IGNORECASE)
+    text = re.sub(r"<style[\s\S]*?</style>", " ", text, flags=re.IGNORECASE)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    return text[:max_chars]
+
+
+def parse_llm_verdict(content: str) -> Verdict | None:
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        return None
+
+    score = int(data.get("risk_score", 0))
+    level = str(data.get("risk_level", "LOW")).upper()
+    reasons = data.get("reasons", [])
+    if not isinstance(reasons, list):
+        reasons = [str(reasons)]
+
+    if level not in {"LOW", "MEDIUM", "HIGH"}:
+        if score >= 70:
+            level = "HIGH"
+        elif score >= 40:
+            level = "MEDIUM"
+        else:
+            level = "LOW"
+
+    return Verdict(
+        risk_score=max(0, min(100, score)),
+        risk_level=level,
+        reasons=[str(r) for r in reasons[:6]] or ["No reasons returned by LLM."],
+        method="llm",
+    )
+
+
+def build_llm_verdict(
+    input_url: str,
+    final_url: str,
+    page_title: str,
+    http_status: int | None,
+    dom_html: str,
+) -> Verdict | None:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key or OpenAI is None:
+        return None
+
+    model = os.getenv("TALON_LLM_MODEL", "gpt-4o-mini")
+    content_text = strip_html_for_prompt(dom_html)
+
+    client = OpenAI(api_key=api_key)
+    prompt = (
+        "You are a phishing detection analyst. "
+        "Classify risk for this URL visit and return strict JSON only.\n\n"
+        f"Input URL: {input_url}\n"
+        f"Final URL: {final_url}\n"
+        f"HTTP status: {http_status}\n"
+        f"Page title: {page_title}\n"
+        f"Page text excerpt: {content_text}\n\n"
+        "Return JSON with keys:\n"
+        "- risk_score (0-100 integer)\n"
+        "- risk_level ('LOW'|'MEDIUM'|'HIGH')\n"
+        "- reasons (array of short strings)\n"
+    )
+
+    try:
+        response = client.responses.create(
+            model=model,
+            input=prompt,
+            max_output_tokens=400,
+        )
+        raw = response.output_text.strip()
+        return parse_llm_verdict(raw)
+    except Exception:
+        return None
+
+
+def analyze_url(url: str, output_dir: Path, timeout_ms: int = 15000, use_llm: bool = True) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -133,15 +215,20 @@ def analyze_url(url: str, output_dir: Path, timeout_ms: int = 15000) -> dict:
         status = response.status if response else None
 
         page.screenshot(path=str(screenshot_path), full_page=True)
-        dom_path.write_text(page.content(), encoding="utf-8")
+        dom_html = page.content()
+        dom_path.write_text(dom_html, encoding="utf-8")
 
-        verdict = build_verdict(final_url, title)
+        llm_verdict = None
+        if use_llm:
+            llm_verdict = build_llm_verdict(url, final_url, title, status, dom_html)
+        verdict = llm_verdict or build_verdict(final_url, title)
         report = {
             "input_url": url,
             "final_url": final_url,
             "http_status": status,
             "page_title": title,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "analysis_method": verdict.method,
             "verdict": asdict(verdict),
             "evidence": {
                 "screenshot": str(screenshot_path),
@@ -159,7 +246,7 @@ def analyze_url(url: str, output_dir: Path, timeout_ms: int = 15000) -> dict:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Talon V1: analyze a URL for basic phishing indicators."
+        description="Talon V1: analyze a URL with LLM + heuristic fallback."
     )
     parser.add_argument("url", help="URL to analyze")
     parser.add_argument(
@@ -173,13 +260,23 @@ def parse_args() -> argparse.Namespace:
         default=15000,
         help="Navigation timeout in milliseconds",
     )
+    parser.add_argument(
+        "--no-llm",
+        action="store_true",
+        help="Disable LLM analysis and use heuristics only",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
     normalized = normalize_url(args.url)
-    report = analyze_url(normalized, Path(args.output_dir), timeout_ms=args.timeout_ms)
+    report = analyze_url(
+        normalized,
+        Path(args.output_dir),
+        timeout_ms=args.timeout_ms,
+        use_llm=not args.no_llm,
+    )
 
     print("=== TALON V1 REPORT ===")
     print(f"Input URL:   {report['input_url']}")
@@ -190,6 +287,7 @@ def main() -> None:
         f"Risk:        {report['verdict']['risk_level']} "
         f"({report['verdict']['risk_score']}/100)"
     )
+    print(f"Method:      {report['analysis_method']}")
     for reason in report["verdict"]["reasons"]:
         print(f"- {reason}")
     print(f"Report JSON: {report['report_path']}")
