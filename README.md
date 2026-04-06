@@ -80,6 +80,7 @@ Run Talon using Ollama backend:
 export TALON_LLM_PROVIDER="ollama"
 export TALON_LLM_MODEL="gemma4"
 export OLLAMA_HOST="http://localhost:11434"
+export OLLAMA_TIMEOUT_SEC="180"
 python3 talon_v1.py "https://example.com"
 ```
 

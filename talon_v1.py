@@ -214,6 +214,7 @@ def build_openai_verdict(prompt: str, model: str) -> Verdict | None:
 
 def build_ollama_verdict(prompt: str, model: str) -> Verdict | None:
     host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    timeout_sec = int(os.getenv("OLLAMA_TIMEOUT_SEC", "180"))
     endpoint = f"{host}/api/generate"
     payload = {
         "model": model,
@@ -229,7 +230,7 @@ def build_ollama_verdict(prompt: str, model: str) -> Verdict | None:
     )
 
     try:
-        with urlopen(request, timeout=60) as resp:
+        with urlopen(request, timeout=timeout_sec) as resp:
             body = resp.read().decode("utf-8")
         data = json.loads(body)
         raw = str(data.get("response", "")).strip()
