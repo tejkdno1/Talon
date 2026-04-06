@@ -17,8 +17,11 @@ services:
     volumes:
       - ./evidence:/app/evidence
     environment:
+      - TALON_LLM_PROVIDER=${TALON_LLM_PROVIDER:-ollama}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://host.docker.internal:11434}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
-      - TALON_LLM_MODEL=${TALON_LLM_MODEL:-gpt-4o-mini}
+      - TALON_LLM_MODEL=${TALON_LLM_MODEL:-gemma4}
+      - TALON_OPENAI_MODEL=${TALON_OPENAI_MODEL:-gpt-4o-mini}
     command:
       - "${TARGET_URL:-https://example.com}"
       - "--output-dir"

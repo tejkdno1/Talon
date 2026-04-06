@@ -31,7 +31,7 @@ Talon is a practical phishing URL analysis tool that:
 1. **Ingest**: receive a URL input.
 2. **Detonate**: load it in headless Chromium.
 3. **Collect**: save final URL, HTTP status, title, screenshot, and DOM.
-4. **Verdict**: assign a heuristic risk score and reasons.
+4. **Verdict**: run LLM analysis (`ollama` / `openai`) with heuristic fallback.
 
 ---
 
@@ -66,10 +66,30 @@ python3 -m playwright install chromium
 python3 talon_v1.py "https://example.com"
 ```
 
-With LLM enabled (default), set your API key:
+### Local Ollama (Gemma4) - recommended for your setup
+
+Start Ollama and pull model:
+
+```bash
+ollama pull gemma4
+```
+
+Run Talon using Ollama backend:
+
+```bash
+export TALON_LLM_PROVIDER="ollama"
+export TALON_LLM_MODEL="gemma4"
+export OLLAMA_HOST="http://localhost:11434"
+python3 talon_v1.py "https://example.com"
+```
+
+### OpenAI (optional)
+
+If you want cloud LLM instead:
 
 ```bash
 export OPENAI_API_KEY="your_api_key_here"
+export TALON_LLM_PROVIDER="openai"
 python3 talon_v1.py "https://example.com"
 ```
 
@@ -88,7 +108,13 @@ python3 talon_v1.py "https://example.com" --no-llm
 Optional model override:
 
 ```bash
-export TALON_LLM_MODEL="gpt-4o-mini"
+export TALON_LLM_MODEL="gemma4"
+```
+
+Optional provider override per run:
+
+```bash
+python3 talon_v1.py "https://example.com" --llm-provider ollama --llm-model gemma4
 ```
 
 ---
@@ -107,6 +133,18 @@ Run analysis:
 TARGET_URL="https://leadscruise.com" docker compose -f docker-compose.sandbox.yml run --rm talon
 ```
 
+For Docker + host Ollama, default `OLLAMA_HOST` is set to:
+
+```bash
+http://host.docker.internal:11434
+```
+
+You can override it if needed:
+
+```bash
+OLLAMA_HOST="http://host.docker.internal:11434" TARGET_URL="https://example.com" docker compose -f docker-compose.sandbox.yml run --rm talon
+```
+
 The sandbox profile includes:
 - read-only root filesystem,
 - all Linux capabilities dropped,
@@ -123,7 +161,10 @@ Each run generates files in `evidence/`:
 - `screenshot_<timestamp>.png`
 - `dom_<timestamp>.html`
 
-`report_<timestamp>.json` includes `analysis_method` (`llm` or `heuristic`).
+`report_<timestamp>.json` includes `analysis_method`:
+- `llm-ollama`
+- `llm-openai`
+- `heuristic`
 
 ---
 

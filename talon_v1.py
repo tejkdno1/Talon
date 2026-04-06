@@ -11,6 +11,8 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlparse
+from urllib.request import Request, urlopen
+from urllib.error import URLError, HTTPError
 
 from playwright.sync_api import sync_playwright
 
@@ -126,12 +128,25 @@ def strip_html_for_prompt(html: str, max_chars: int = 3000) -> str:
 
 
 def parse_llm_verdict(content: str) -> Verdict | None:
+    text = content.strip()
+    if "```" in text:
+        match = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", text, re.IGNORECASE)
+        if match:
+            text = match.group(1).strip()
+    if not text.startswith("{"):
+        match = re.search(r"(\{[\s\S]*\})", text)
+        if match:
+            text = match.group(1).strip()
+
     try:
-        data = json.loads(content)
+        data = json.loads(text)
     except json.JSONDecodeError:
         return None
 
-    score = int(data.get("risk_score", 0))
+    try:
+        score = int(data.get("risk_score", 0))
+    except (TypeError, ValueError):
+        score = 0
     level = str(data.get("risk_level", "LOW")).upper()
     reasons = data.get("reasons", [])
     if not isinstance(reasons, list):
@@ -153,22 +168,15 @@ def parse_llm_verdict(content: str) -> Verdict | None:
     )
 
 
-def build_llm_verdict(
+def build_prompt(
     input_url: str,
     final_url: str,
     page_title: str,
     http_status: int | None,
     dom_html: str,
-) -> Verdict | None:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key or OpenAI is None:
-        return None
-
-    model = os.getenv("TALON_LLM_MODEL", "gpt-4o-mini")
+) -> str:
     content_text = strip_html_for_prompt(dom_html)
-
-    client = OpenAI(api_key=api_key)
-    prompt = (
+    return (
         "You are a phishing detection analyst. "
         "Classify risk for this URL visit and return strict JSON only.\n\n"
         f"Input URL: {input_url}\n"
@@ -182,6 +190,13 @@ def build_llm_verdict(
         "- reasons (array of short strings)\n"
     )
 
+
+def build_openai_verdict(prompt: str, model: str) -> Verdict | None:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key or OpenAI is None:
+        return None
+
+    client = OpenAI(api_key=api_key)
     try:
         response = client.responses.create(
             model=model,
@@ -189,12 +204,74 @@ def build_llm_verdict(
             max_output_tokens=400,
         )
         raw = response.output_text.strip()
-        return parse_llm_verdict(raw)
+        verdict = parse_llm_verdict(raw)
+        if verdict:
+            verdict.method = "llm-openai"
+        return verdict
     except Exception:
         return None
 
 
-def analyze_url(url: str, output_dir: Path, timeout_ms: int = 15000, use_llm: bool = True) -> dict:
+def build_ollama_verdict(prompt: str, model: str) -> Verdict | None:
+    host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    endpoint = f"{host}/api/generate"
+    payload = {
+        "model": model,
+        "prompt": prompt,
+        "format": "json",
+        "stream": False,
+    }
+    request = Request(
+        endpoint,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+
+    try:
+        with urlopen(request, timeout=60) as resp:
+            body = resp.read().decode("utf-8")
+        data = json.loads(body)
+        raw = str(data.get("response", "")).strip()
+        verdict = parse_llm_verdict(raw)
+        if verdict:
+            verdict.method = "llm-ollama"
+        return verdict
+    except (URLError, HTTPError, TimeoutError, json.JSONDecodeError):
+        return None
+
+
+def build_llm_verdict(
+    input_url: str,
+    final_url: str,
+    page_title: str,
+    http_status: int | None,
+    dom_html: str,
+    llm_provider: str = "auto",
+    llm_model: str | None = None,
+) -> Verdict | None:
+    provider = llm_provider.lower()
+    ollama_model = llm_model or os.getenv("TALON_LLM_MODEL", "gemma4")
+    openai_model = os.getenv("TALON_OPENAI_MODEL", "gpt-4o-mini")
+    prompt = build_prompt(input_url, final_url, page_title, http_status, dom_html)
+
+    if provider == "openai":
+        return build_openai_verdict(prompt, llm_model or openai_model)
+    if provider == "ollama":
+        return build_ollama_verdict(prompt, ollama_model)
+
+    # auto: prefer local ollama first, then openai.
+    return build_ollama_verdict(prompt, ollama_model) or build_openai_verdict(prompt, openai_model)
+
+
+def analyze_url(
+    url: str,
+    output_dir: Path,
+    timeout_ms: int = 15000,
+    use_llm: bool = True,
+    llm_provider: str = "auto",
+    llm_model: str | None = None,
+) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -220,7 +297,15 @@ def analyze_url(url: str, output_dir: Path, timeout_ms: int = 15000, use_llm: bo
 
         llm_verdict = None
         if use_llm:
-            llm_verdict = build_llm_verdict(url, final_url, title, status, dom_html)
+            llm_verdict = build_llm_verdict(
+                url,
+                final_url,
+                title,
+                status,
+                dom_html,
+                llm_provider=llm_provider,
+                llm_model=llm_model,
+            )
         verdict = llm_verdict or build_verdict(final_url, title)
         report = {
             "input_url": url,
@@ -265,6 +350,17 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable LLM analysis and use heuristics only",
     )
+    parser.add_argument(
+        "--llm-provider",
+        choices=["auto", "ollama", "openai"],
+        default=os.getenv("TALON_LLM_PROVIDER", "auto"),
+        help="LLM backend provider (default: env TALON_LLM_PROVIDER or auto)",
+    )
+    parser.add_argument(
+        "--llm-model",
+        default=os.getenv("TALON_LLM_MODEL", "gemma4"),
+        help="LLM model name (default: env TALON_LLM_MODEL or gemma4)",
+    )
     return parser.parse_args()
 
 
@@ -276,6 +372,8 @@ def main() -> None:
         Path(args.output_dir),
         timeout_ms=args.timeout_ms,
         use_llm=not args.no_llm,
+        llm_provider=args.llm_provider,
+        llm_model=args.llm_model,
     )
 
     print("=== TALON V1 REPORT ===")
