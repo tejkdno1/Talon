@@ -40,3 +40,24 @@ pip install -r requirements.txt
 
 # Install Playwright browsers
 playwright install chromium
+```
+
+## ▶️ Basic V1 Usage
+
+Run a first phishing analysis on a URL:
+
+```bash
+python talon_v1.py "https://example.com"
+```
+
+Optional flags:
+
+```bash
+python talon_v1.py "example.com/login" --output-dir evidence --timeout-ms 20000
+```
+
+This V1 script will:
+- Open the URL in headless Chromium
+- Follow redirects and collect final URL + status
+- Save screenshot + DOM snapshot
+- Generate a simple heuristic phishing verdict JSON report
