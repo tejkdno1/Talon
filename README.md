@@ -60,6 +60,33 @@ python3 -m playwright install chromium
 
 ---
 
+## 📦 One-File Executable (Open-Source Friendly)
+
+Build a single binary (no Python required on target machine):
+
+```bash
+./build_onefile.sh
+```
+
+Output:
+
+```bash
+dist/talon
+```
+
+Run it directly:
+
+```bash
+./dist/talon "https://example.com" --llm-provider ollama --llm-model gemma4
+```
+
+Notes:
+- Keep Ollama running locally when using `--llm-provider ollama`.
+- For OpenAI provider, set `OPENAI_API_KEY` as usual.
+- On first run, Chromium auto-installs to `~/.cache/ms-playwright`.
+
+---
+
 ## ▶️ Quick Start (Host Run)
 
 ```bash

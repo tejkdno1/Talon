@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import re
+import sys
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,7 +15,12 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
 
+# For one-file executable builds, ensure browsers are stored in a persistent path.
+if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(Path.home() / ".cache" / "ms-playwright")
+
 from playwright.sync_api import sync_playwright
+from playwright._impl._errors import Error as PlaywrightError
 
 try:
     from openai import OpenAI
@@ -285,7 +291,21 @@ def analyze_url(
     report_path = run_dir / "report.json"
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        try:
+            browser = p.chromium.launch(headless=True)
+        except PlaywrightError as launch_error:
+            if "Executable doesn't exist" not in str(launch_error):
+                raise
+            # First run (or clean machine): bootstrap Chromium automatically.
+            import playwright.__main__ as playwright_cli
+
+            original_argv = sys.argv[:]
+            try:
+                sys.argv = ["playwright", "install", "chromium"]
+                playwright_cli.main()
+            finally:
+                sys.argv = original_argv
+            browser = p.chromium.launch(headless=True)
         context = browser.new_context(ignore_https_errors=True)
         page = context.new_page()
 

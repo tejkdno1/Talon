@@ -1,2 +1,5 @@
 evidence/
 logs/
+build/
+dist/
+*.spec
