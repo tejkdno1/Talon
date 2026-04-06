@@ -88,6 +88,34 @@ Notes:
 
 ---
 
+## 🧠 Onboarding + Intent Mode
+
+Run interactive onboarding (OpenClaw-style) to connect your LLM backend:
+
+```bash
+sectalon onboard
+```
+
+This stores config at:
+
+```bash
+~/.config/sectalon/config.json
+```
+
+Then you can parse natural-language intent through your connected LLM:
+
+```bash
+sectalon intent "check if amezon.in looks like phishing"
+```
+
+Supported intent outputs include:
+- `analyze_url`
+- `onboard`
+- `help`
+- `unknown`
+
+---
+
 ## 📦 One-File Executable (Open-Source Friendly)
 
 Build a single binary (no Python required on target machine):

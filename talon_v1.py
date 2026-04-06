@@ -57,6 +57,8 @@ PHISH_KEYWORDS = {
     "paypal",
 }
 
+SECTALON_CONFIG_PATH = Path.home() / ".config" / "sectalon" / "config.json"
+
 
 def print_banner() -> None:
     # Green-accent terminal banner for a distinct CLI look-and-feel.
@@ -82,6 +84,187 @@ def print_banner() -> None:
     print(f"{green}{bold}          S E C T A L O N   |   A I   P H I S H I N G   H U N T E R{reset}")
     print(f"{dim}          Smart URL detonation, evidence capture, and LLM verdicts.{reset}")
     print()
+
+
+def print_onboard_banner() -> None:
+    green = "\033[92m"
+    bold = "\033[1m"
+    reset = "\033[0m"
+    print()
+    print(f"{green}{bold}🛡️  Sectalon Onboarding{reset}")
+    print(f"{green}{'-' * 34}{reset}")
+    print("Connect your LLM backend once, then use intent-aware commands.")
+    print()
+
+
+def load_config() -> dict:
+    if not SECTALON_CONFIG_PATH.exists():
+        return {}
+    try:
+        return json.loads(SECTALON_CONFIG_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def save_config(config: dict) -> None:
+    SECTALON_CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    SECTALON_CONFIG_PATH.write_text(json.dumps(config, indent=2), encoding="utf-8")
+
+
+def apply_config_env(config: dict) -> None:
+    mapping = {
+        "llm_provider": "TALON_LLM_PROVIDER",
+        "llm_model": "TALON_LLM_MODEL",
+        "ollama_host": "OLLAMA_HOST",
+        "ollama_timeout_sec": "OLLAMA_TIMEOUT_SEC",
+        "openai_api_key": "OPENAI_API_KEY",
+        "openai_model": "TALON_OPENAI_MODEL",
+    }
+    for key, env_name in mapping.items():
+        value = config.get(key)
+        if value and env_name not in os.environ:
+            os.environ[env_name] = str(value)
+
+
+def run_onboarding() -> int:
+    print_onboard_banner()
+    current = load_config()
+    if current:
+        print("Found existing config. Leave input blank to keep current values.")
+    else:
+        print("No existing config found. Let's create one.")
+
+    provider_default = current.get("llm_provider", "ollama")
+    provider = (
+        input(f"LLM provider [ollama/openai/auto] (default: {provider_default}): ").strip().lower()
+        or provider_default
+    )
+    if provider not in {"ollama", "openai", "auto"}:
+        provider = provider_default
+
+    model_default = current.get("llm_model", "gemma4")
+    model = input(f"Default LLM model (default: {model_default}): ").strip() or model_default
+
+    ollama_host_default = current.get("ollama_host", "http://localhost:11434")
+    ollama_host = (
+        input(f"Ollama host (default: {ollama_host_default}): ").strip() or ollama_host_default
+    )
+    timeout_default = str(current.get("ollama_timeout_sec", "180"))
+    timeout = input(f"Ollama timeout seconds (default: {timeout_default}): ").strip() or timeout_default
+
+    openai_model_default = current.get("openai_model", "gpt-4o-mini")
+    openai_model = (
+        input(f"OpenAI model (default: {openai_model_default}): ").strip() or openai_model_default
+    )
+    key_hint = "set" if current.get("openai_api_key") else "not set"
+    api_key = input(f"OpenAI API key [{key_hint}] (blank keeps existing): ").strip()
+    if not api_key:
+        api_key = current.get("openai_api_key", "")
+
+    config = {
+        "llm_provider": provider,
+        "llm_model": model,
+        "ollama_host": ollama_host,
+        "ollama_timeout_sec": timeout,
+        "openai_model": openai_model,
+        "openai_api_key": api_key,
+    }
+    save_config(config)
+    print(f"\nSaved config: {SECTALON_CONFIG_PATH}")
+    print("Try:")
+    print('  sectalon intent "check if amezon.in is suspicious"')
+    print('  sectalon "https://example.com"')
+    return 0
+
+
+def parse_json_object_loose(text: str) -> dict | None:
+    raw = text.strip()
+    if "```" in raw:
+        match = re.search(r"```(?:json)?\s*(\{[\s\S]*\})\s*```", raw, re.IGNORECASE)
+        if match:
+            raw = match.group(1).strip()
+    if not raw.startswith("{"):
+        match = re.search(r"(\{[\s\S]*\})", raw)
+        if match:
+            raw = match.group(1).strip()
+    try:
+        obj = json.loads(raw)
+        if isinstance(obj, dict):
+            return obj
+    except json.JSONDecodeError:
+        return None
+    return None
+
+
+def llm_generate_json(prompt: str, provider: str, model: str) -> dict | None:
+    if provider == "openai":
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        if not api_key or OpenAI is None:
+            return None
+        try:
+            client = OpenAI(api_key=api_key)
+            response = client.responses.create(model=model, input=prompt, max_output_tokens=300)
+            return parse_json_object_loose(response.output_text)
+        except Exception:
+            return None
+
+    host = os.getenv("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    timeout_sec = int(os.getenv("OLLAMA_TIMEOUT_SEC", "180"))
+    request = Request(
+        f"{host}/api/generate",
+        data=json.dumps(
+            {"model": model, "prompt": prompt, "format": "json", "stream": False}
+        ).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urlopen(request, timeout=timeout_sec) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+        return parse_json_object_loose(str(body.get("response", "")))
+    except Exception:
+        return None
+
+
+def run_intent_command(text: str) -> int:
+    config = load_config()
+    apply_config_env(config)
+    provider = os.getenv("TALON_LLM_PROVIDER", "auto").lower()
+    model = os.getenv("TALON_LLM_MODEL", "gemma4")
+    openai_model = os.getenv("TALON_OPENAI_MODEL", "gpt-4o-mini")
+
+    prompt = (
+        "Classify this user request for a phishing-analysis CLI.\n"
+        "Return strict JSON only with keys:\n"
+        "- intent: one of [analyze_url, onboard, help, unknown]\n"
+        "- url: string or null\n"
+        "- confidence: number 0..1\n"
+        "- reason: short string\n\n"
+        f"User input: {text}\n"
+    )
+
+    result = None
+    if provider == "auto":
+        result = llm_generate_json(prompt, "ollama", model) or llm_generate_json(
+            prompt, "openai", openai_model
+        )
+    elif provider == "openai":
+        result = llm_generate_json(prompt, "openai", openai_model)
+    else:
+        result = llm_generate_json(prompt, "ollama", model)
+
+    if not result:
+        print("Intent: unknown")
+        print("Confidence: 0.0")
+        print("Reason: LLM backend unavailable or invalid response.")
+        return 1
+
+    print("=== SECTALON INTENT ===")
+    print(f"Intent:      {result.get('intent', 'unknown')}")
+    print(f"URL:         {result.get('url')}")
+    print(f"Confidence:  {result.get('confidence')}")
+    print(f"Reason:      {result.get('reason')}")
+    return 0
 
 
 @dataclass
@@ -506,6 +689,16 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "onboard":
+        raise SystemExit(run_onboarding())
+    if len(sys.argv) > 1 and sys.argv[1] == "intent":
+        intent_text = " ".join(sys.argv[2:]).strip()
+        if not intent_text:
+            print('Usage: sectalon intent "<your request text>"')
+            raise SystemExit(2)
+        raise SystemExit(run_intent_command(intent_text))
+
+    apply_config_env(load_config())
     args = parse_args()
     if os.getenv("SECTALON_NO_BANNER", "").strip().lower() not in {"1", "true", "yes"}:
         print_banner()
