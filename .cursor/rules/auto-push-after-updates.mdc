@@ -1,0 +1,12 @@
+---
+description: Auto-push to GitHub after updates
+alwaysApply: true
+---
+
+# Auto Push After Updates
+
+- After completing code changes, commit and push to the repository's tracked remote branch by default.
+- Before pushing, verify only intended files are staged and avoid committing generated artifacts, secrets, or local-only files.
+- If a task includes no code/file changes, do not create empty commits or push.
+- If the user explicitly says not to push, skip pushing for that task.
+- If push fails due to auth/permissions, report the exact blocker and next command needed.
