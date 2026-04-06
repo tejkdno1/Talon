@@ -167,6 +167,9 @@ Each `report.json` includes `analysis_method`:
 - `llm-openai`
 - `heuristic`
 
+Run logs are also appended to:
+- `logs/runs.jsonl` (one JSON entry per scan)
+
 ---
 
 ## 🔐 Security Note

@@ -273,6 +273,8 @@ def analyze_url(
     llm_model: str | None = None,
 ) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir = Path("logs")
+    logs_dir.mkdir(parents=True, exist_ok=True)
 
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     run_dir = output_dir / f"run_{ts}"
@@ -329,6 +331,24 @@ def analyze_url(
 
     report["report_path"] = str(report_path)
     report["run_dir"] = str(run_dir)
+
+    run_log_entry = {
+        "timestamp_utc": report["timestamp_utc"],
+        "input_url": report["input_url"],
+        "final_url": report["final_url"],
+        "http_status": report["http_status"],
+        "page_title": report["page_title"],
+        "analysis_method": report["analysis_method"],
+        "risk_score": report["verdict"]["risk_score"],
+        "risk_level": report["verdict"]["risk_level"],
+        "run_dir": report["run_dir"],
+        "report_path": report["report_path"],
+        "screenshot": report["evidence"]["screenshot"],
+        "dom_snapshot": report["evidence"]["dom_snapshot"],
+    }
+    with (logs_dir / "runs.jsonl").open("a", encoding="utf-8") as log_file:
+        log_file.write(json.dumps(run_log_entry, ensure_ascii=True) + "\n")
+
     return report
 
 
