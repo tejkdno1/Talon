@@ -60,9 +60,9 @@ python3 -m playwright install chromium
 
 ---
 
-## 📥 Install As CLI Package (`talon`)
+## 📥 Install As CLI Package (`sectalon`)
 
-You can install Talon on another machine as a CLI package and run it via `talon`.
+You can install Talon on another machine as a CLI package and run it via `sectalon`.
 
 From GitHub:
 
@@ -79,11 +79,11 @@ pipx install "git+https://github.com/tejkdno1/Talon.git"
 Then run:
 
 ```bash
-talon "https://example.com" --llm-provider ollama --llm-model gemma4
+sectalon "https://example.com" --llm-provider ollama --llm-model gemma4
 ```
 
 Notes:
-- Package name is `sectalon`, command name is `talon`.
+- Package name is `sectalon`, command name is `sectalon`.
 - First run auto-downloads Chromium if missing.
 
 ---
@@ -99,13 +99,13 @@ Build a single binary (no Python required on target machine):
 Output:
 
 ```bash
-dist/talon
+dist/sectalon
 ```
 
 Run it directly:
 
 ```bash
-./dist/talon "https://example.com" --llm-provider ollama --llm-model gemma4
+./dist/sectalon "https://example.com" --llm-provider ollama --llm-model gemma4
 ```
 
 Notes:

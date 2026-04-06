@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sectalon"
-version = "0.1.0"
+version = "0.1.1"
 description = "Talon CLI: phishing URL analysis with Playwright, Ollama/OpenAI, and evidence capture."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -20,7 +20,7 @@ Homepage = "https://github.com/tejkdno1/Talon"
 Repository = "https://github.com/tejkdno1/Talon"
 
 [project.scripts]
-talon = "talon_v1:main"
+sectalon = "talon_v1:main"
 
 [tool.setuptools]
 py-modules = ["talon_v1"]

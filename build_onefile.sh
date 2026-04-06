@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="${1:-talon}"
+APP_NAME="${1:-sectalon}"
 
 python3 -m pip install -r requirements.txt -r requirements-build.txt
 
