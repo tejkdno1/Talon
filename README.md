@@ -83,7 +83,7 @@ talon "https://example.com" --llm-provider ollama --llm-model gemma4
 ```
 
 Notes:
-- Package name is `talon-phish`, command name is `talon`.
+- Package name is `sectalon`, command name is `talon`.
 - First run auto-downloads Chromium if missing.
 
 ---

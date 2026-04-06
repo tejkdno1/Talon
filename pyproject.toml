@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "talon-phish"
+name = "sectalon"
 version = "0.1.0"
 description = "Talon CLI: phishing URL analysis with Playwright, Ollama/OpenAI, and evidence capture."
 readme = "README.md"
