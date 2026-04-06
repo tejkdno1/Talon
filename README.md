@@ -32,8 +32,8 @@ Cybersecurity analysts suffer from **Alert Fatigue**. Every day, they manually c
 
 ```bash
 # Clone the repository
-git clone [https://github.com/tejkdno1/Phishawk.git](https://github.com/tejkdno1/Phishawk.git)
-cd Phishawk
+git clone [https://github.com/tejkdno1/Talon.git](https://github.com/tejkdno1/Talon.git)
+cd Talon
 
 # Install dependencies
 pip install -r requirements.txt
