@@ -57,6 +57,32 @@ PHISH_KEYWORDS = {
 }
 
 
+def print_banner() -> None:
+    # Green-accent terminal banner for a distinct CLI look-and-feel.
+    green = "\033[92m"
+    bold = "\033[1m"
+    reset = "\033[0m"
+    dim = "\033[2m"
+
+    art = [
+        "  _____ ______ _____ _______       _      ____  _   _ ",
+        " / ____|  ____/ ____|__   __|/\\   | |    / __ \\| \\ | |",
+        "| (___ | |__ | |       | |  /  \\  | |   | |  | |  \\| |",
+        " \\___ \\|  __|| |       | | / /\\ \\ | |   | |  | | . ` |",
+        " ____) | |___| |____   | |/ ____ \\| |___| |__| | |\\  |",
+        "|_____/|______\\_____|  |_/_/    \\_\\______\\____/|_| \\_|",
+    ]
+
+    print()
+    print(f"{green}{bold}{'=' * 64}{reset}")
+    for line in art:
+        print(f"{green}{bold}{line}{reset}")
+    print(f"{green}{bold}{'=' * 64}{reset}")
+    print(f"{green}{bold}          S E C T A L O N   |   A I   P H I S H I N G   H U N T E R{reset}")
+    print(f"{dim}          Smart URL detonation, evidence capture, and LLM verdicts.{reset}")
+    print()
+
+
 @dataclass
 class Verdict:
     risk_score: int
@@ -410,6 +436,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if os.getenv("SECTALON_NO_BANNER", "").strip().lower() not in {"1", "true", "yes"}:
+        print_banner()
     normalized = normalize_url(args.url)
     report = analyze_url(
         normalized,
