@@ -1,0 +1,4 @@
+.git
+evidence
+__pycache__
+*.pyc

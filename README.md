@@ -61,3 +61,22 @@ This V1 script will:
 - Follow redirects and collect final URL + status
 - Save screenshot + DOM snapshot
 - Generate a simple heuristic phishing verdict JSON report
+
+## 🧱 Sandbox Run (Docker)
+
+For safer execution, run Talon inside a locked-down container:
+
+```bash
+docker compose -f docker-compose.sandbox.yml build
+TARGET_URL="https://leadscruise.com" docker compose -f docker-compose.sandbox.yml run --rm talon
+```
+
+What this sandbox setup does:
+- Runs scanner in a container (isolated process namespace)
+- Uses read-only root filesystem
+- Drops Linux capabilities (`cap_drop: ALL`)
+- Enables `no-new-privileges`
+- Limits CPU / memory / PIDs
+- Writes output only to mounted `./evidence`
+
+Important: Docker isolation is much safer than host execution, but no runtime is a 100% guarantee. For high-risk malware analysis, use a dedicated VM/network segment too.

@@ -1,0 +1,22 @@
+services:
+  talon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: talon-sandbox:latest
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 1g
+    cpus: 1.0
+    tmpfs:
+      - /tmp:size=256m
+    volumes:
+      - ./evidence:/app/evidence
+    command:
+      - "${TARGET_URL:-https://example.com}"
+      - "--output-dir"
+      - "/app/evidence"
