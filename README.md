@@ -1,6 +1,7 @@
-# Talon (Alpha)
+# 🦅 Talon (Alpha)
 
-**The Autonomous AI Phishing Hunter**
+> **The Autonomous AI Phishing Hunter**
+> Detonate suspicious URLs, capture evidence, and get a fast phishing-risk verdict.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
@@ -14,17 +15,17 @@ Talon is a practical phishing URL analysis tool that:
 
 ---
 
-## Features (V1)
+## ✨ Features (V1)
 
-- **URL detonation:** opens a target URL safely in Playwright.
-- **Redirect awareness:** records the final resolved URL after redirects.
-- **Evidence capture:** stores full-page screenshot and DOM snapshot.
-- **Structured output:** writes a JSON report with score, level, and reasons.
-- **Docker sandbox mode:** runs analysis in a hardened container profile.
+- **🕵️ URL detonation:** opens a target URL safely in Playwright.
+- **🔁 Redirect awareness:** records the final resolved URL after redirects.
+- **🧾 Evidence capture:** stores full-page screenshot and DOM snapshot.
+- **📊 Structured output:** writes a JSON report with score, level, and reasons.
+- **🧱 Docker sandbox mode:** runs analysis in a hardened container profile.
 
 ---
 
-## How It Works
+## ⚙️ How It Works
 
 1. **Ingest**: receive a URL input.
 2. **Detonate**: load it in headless Chromium.
@@ -33,7 +34,7 @@ Talon is a practical phishing URL analysis tool that:
 
 ---
 
-## Project Structure
+## 📁 Project Structure
 
 ```text
 .
@@ -47,7 +48,7 @@ Talon is a practical phishing URL analysis tool that:
 
 ---
 
-## Local Setup
+## 🚀 Local Setup
 
 ```bash
 git clone https://github.com/tejkdno1/Talon.git
@@ -58,7 +59,7 @@ python3 -m playwright install chromium
 
 ---
 
-## Quick Start (Host Run)
+## ▶️ Quick Start (Host Run)
 
 ```bash
 python3 talon_v1.py "https://example.com"
@@ -72,7 +73,7 @@ python3 talon_v1.py "example.com/login" --output-dir evidence --timeout-ms 20000
 
 ---
 
-## Docker Sandbox Run (Recommended)
+## 🛡️ Docker Sandbox Run (Recommended)
 
 Build once:
 
@@ -95,7 +96,7 @@ The sandbox profile includes:
 
 ---
 
-## Output Artifacts
+## 📦 Output Artifacts
 
 Each run generates files in `evidence/`:
 - `report_<timestamp>.json`
@@ -104,6 +105,6 @@ Each run generates files in `evidence/`:
 
 ---
 
-## Security Note
+## 🔐 Security Note
 
 Docker sandboxing significantly reduces risk compared to running directly on the host, but no sandbox is perfect. For high-risk investigations, use a dedicated VM and isolated network segment.
