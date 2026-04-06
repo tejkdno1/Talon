@@ -60,6 +60,34 @@ python3 -m playwright install chromium
 
 ---
 
+## 📥 Install As CLI Package (`talon`)
+
+You can install Talon on another machine as a CLI package and run it via `talon`.
+
+From GitHub:
+
+```bash
+python3 -m pip install "git+https://github.com/tejkdno1/Talon.git"
+```
+
+Or with `pipx` (recommended for CLI tools):
+
+```bash
+pipx install "git+https://github.com/tejkdno1/Talon.git"
+```
+
+Then run:
+
+```bash
+talon "https://example.com" --llm-provider ollama --llm-model gemma4
+```
+
+Notes:
+- Package name is `talon-phish`, command name is `talon`.
+- First run auto-downloads Chromium if missing.
+
+---
+
 ## 📦 One-File Executable (Open-Source Friendly)
 
 Build a single binary (no Python required on target machine):

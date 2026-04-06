@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "talon-phish"
+version = "0.1.0"
+description = "Talon CLI: phishing URL analysis with Playwright, Ollama/OpenAI, and evidence capture."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "tejkdno1" }]
+dependencies = [
+  "playwright>=1.52.0",
+  "openai>=1.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/tejkdno1/Talon"
+Repository = "https://github.com/tejkdno1/Talon"
+
+[project.scripts]
+talon = "talon_v1:main"
+
+[tool.setuptools]
+py-modules = ["talon_v1"]
