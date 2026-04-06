@@ -1,82 +1,109 @@
-# 🦅 Talon (Alpha)
-> **The Autonomous AI Phishing Hunter.** > Stop guessing. Let an AI Agent detonate, photograph, and judge suspicious links for you.
+# Talon (Alpha)
+
+**The Autonomous AI Phishing Hunter**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![Playwright](https://img.shields.io/badge/Engine-Playwright-green.svg)](https://playwright.dev/)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![Engine: Playwright](https://img.shields.io/badge/Engine-Playwright-green.svg)](https://playwright.dev/)
+[![Sandbox: Docker](https://img.shields.io/badge/Sandbox-Docker-2496ED.svg)](https://www.docker.com/)
+
+Talon is a practical phishing URL analysis tool that:
+- detonates suspicious links in headless Chromium,
+- captures forensic evidence (screenshot + DOM snapshot),
+- returns a basic heuristic phishing risk verdict.
 
 ---
 
-## 🚀 Why Talon?
-Cybersecurity analysts suffer from **Alert Fatigue**. Every day, they manually check hundreds of "suspicious" emails. 
+## Features (V1)
 
-**Talon** is an autonomous agent designed to handle the "Golden Hour" of incident response. It doesn't just check a blacklist; it **thinks** like an analyst. It opens the link in a virtual "containment cell" (headless browser), takes a screenshot, and uses **Computer Vision + LLMs** to determine if a site is a visual clone of a trusted brand.
-
-### Key "Revolutionary" Features:
-* **🕵️ Headless Detonation:** Safely follows nested redirects (bit.ly → tinyurl → malicious-site).
-* **👁️ Visual Phishing Detection:** Uses AI Vision to identify "Brand Jacking" (e.g., a site that *looks* like Microsoft but lives on a `.ru` domain).
-* **🧠 Agentic Verdicts:** Instead of "Clean/Infected," get a natural language report: *"This is a credential harvester targeting Outlook users."*
-* **🛡️ Evidence Capture:** Automatically saves full-page PNGs and DOM snapshots for forensic reports.
+- **URL detonation:** opens a target URL safely in Playwright.
+- **Redirect awareness:** records the final resolved URL after redirects.
+- **Evidence capture:** stores full-page screenshot and DOM snapshot.
+- **Structured output:** writes a JSON report with score, level, and reasons.
+- **Docker sandbox mode:** runs analysis in a hardened container profile.
 
 ---
 
-## 🛠️ How it Works
-1.  **Ingest:** Feed Talon a URL or an `.eml` file.
-2.  **Detonate:** Talon launches a stealth Chromium instance via **Playwright**.
-3.  **Analyze:** It scrapes the final URL, SSL certs, and visual layout.
-4.  **Verdict:** The AI Agent compares the evidence and gives a confidence score.
+## How It Works
+
+1. **Ingest**: receive a URL input.
+2. **Detonate**: load it in headless Chromium.
+3. **Collect**: save final URL, HTTP status, title, screenshot, and DOM.
+4. **Verdict**: assign a heuristic risk score and reasons.
 
 ---
 
-## 📦 Installation
+## Project Structure
+
+```text
+.
+├── talon_v1.py
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.sandbox.yml
+├── .gitignore
+└── evidence/              # generated at runtime (ignored by git)
+```
+
+---
+
+## Local Setup
 
 ```bash
-# Clone the repository
-git clone [https://github.com/tejkdno1/Talon.git](https://github.com/tejkdno1/Talon.git)
+git clone https://github.com/tejkdno1/Talon.git
 cd Talon
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Install Playwright browsers
-playwright install chromium
+python3 -m pip install -r requirements.txt
+python3 -m playwright install chromium
 ```
 
-## ▶️ Basic V1 Usage
+---
 
-Run a first phishing analysis on a URL:
+## Quick Start (Host Run)
 
 ```bash
-python talon_v1.py "https://example.com"
+python3 talon_v1.py "https://example.com"
 ```
 
-Optional flags:
+Optional:
 
 ```bash
-python talon_v1.py "example.com/login" --output-dir evidence --timeout-ms 20000
+python3 talon_v1.py "example.com/login" --output-dir evidence --timeout-ms 20000
 ```
 
-This V1 script will:
-- Open the URL in headless Chromium
-- Follow redirects and collect final URL + status
-- Save screenshot + DOM snapshot
-- Generate a simple heuristic phishing verdict JSON report
+---
 
-## 🧱 Sandbox Run (Docker)
+## Docker Sandbox Run (Recommended)
 
-For safer execution, run Talon inside a locked-down container:
+Build once:
 
 ```bash
 docker compose -f docker-compose.sandbox.yml build
+```
+
+Run analysis:
+
+```bash
 TARGET_URL="https://leadscruise.com" docker compose -f docker-compose.sandbox.yml run --rm talon
 ```
 
-What this sandbox setup does:
-- Runs scanner in a container (isolated process namespace)
-- Uses read-only root filesystem
-- Drops Linux capabilities (`cap_drop: ALL`)
-- Enables `no-new-privileges`
-- Limits CPU / memory / PIDs
-- Writes output only to mounted `./evidence`
+The sandbox profile includes:
+- read-only root filesystem,
+- all Linux capabilities dropped,
+- `no-new-privileges`,
+- CPU/memory/PID limits,
+- output only through mounted `./evidence`.
 
-Important: Docker isolation is much safer than host execution, but no runtime is a 100% guarantee. For high-risk malware analysis, use a dedicated VM/network segment too.
+---
+
+## Output Artifacts
+
+Each run generates files in `evidence/`:
+- `report_<timestamp>.json`
+- `screenshot_<timestamp>.png`
+- `dom_<timestamp>.html`
+
+---
+
+## Security Note
+
+Docker sandboxing significantly reduces risk compared to running directly on the host, but no sandbox is perfect. For high-risk investigations, use a dedicated VM and isolated network segment.
