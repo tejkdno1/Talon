@@ -334,47 +334,75 @@ def analyze_url(
             browser = p.chromium.launch(headless=True)
         context = browser.new_context(ignore_https_errors=True)
         page = context.new_page()
+        error_message = None
+        error_path = run_dir / "error.txt"
 
-        response = page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
-        page.wait_for_timeout(1000)
+        try:
+            response = page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+            page.wait_for_timeout(1000)
 
-        final_url = page.url
-        title = page.title()
-        status = response.status if response else None
+            final_url = page.url
+            title = page.title()
+            status = response.status if response else None
 
-        page.screenshot(path=str(screenshot_path), full_page=True)
-        dom_html = page.content()
-        dom_path.write_text(dom_html, encoding="utf-8")
+            page.screenshot(path=str(screenshot_path), full_page=True)
+            dom_html = page.content()
+            dom_path.write_text(dom_html, encoding="utf-8")
 
-        llm_verdict = None
-        if use_llm:
-            llm_verdict = build_llm_verdict(
-                url,
-                final_url,
-                title,
-                status,
-                dom_html,
-                llm_provider=llm_provider,
-                llm_model=llm_model,
+            llm_verdict = None
+            if use_llm:
+                llm_verdict = build_llm_verdict(
+                    url,
+                    final_url,
+                    title,
+                    status,
+                    dom_html,
+                    llm_provider=llm_provider,
+                    llm_model=llm_model,
+                )
+            verdict = llm_verdict or build_verdict(final_url, title)
+            report = {
+                "input_url": url,
+                "final_url": final_url,
+                "http_status": status,
+                "page_title": title,
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "analysis_method": verdict.method,
+                "verdict": asdict(verdict),
+                "evidence": {
+                    "screenshot": str(screenshot_path),
+                    "dom_snapshot": str(dom_path),
+                },
+            }
+        except PlaywrightError as nav_error:
+            error_message = str(nav_error).splitlines()[0]
+            error_path.write_text(error_message + "\n", encoding="utf-8")
+            verdict = Verdict(
+                risk_score=60,
+                risk_level="MEDIUM",
+                reasons=[f"Navigation failed: {error_message}"],
+                method="runtime-error",
             )
-        verdict = llm_verdict or build_verdict(final_url, title)
-        report = {
-            "input_url": url,
-            "final_url": final_url,
-            "http_status": status,
-            "page_title": title,
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            "analysis_method": verdict.method,
-            "verdict": asdict(verdict),
-            "evidence": {
-                "screenshot": str(screenshot_path),
-                "dom_snapshot": str(dom_path),
-            },
-        }
-        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+            report = {
+                "input_url": url,
+                "final_url": url,
+                "http_status": None,
+                "page_title": "UNREACHABLE",
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "analysis_method": verdict.method,
+                "verdict": asdict(verdict),
+                "error": error_message,
+                "evidence": {
+                    "screenshot": None,
+                    "dom_snapshot": None,
+                    "error_log": str(error_path),
+                },
+            }
+        finally:
+            context.close()
+            browser.close()
 
-        context.close()
-        browser.close()
+        report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     report["report_path"] = str(report_path)
     report["run_dir"] = str(run_dir)
@@ -392,6 +420,7 @@ def analyze_url(
         "report_path": report["report_path"],
         "screenshot": report["evidence"]["screenshot"],
         "dom_snapshot": report["evidence"]["dom_snapshot"],
+        "error": report.get("error"),
     }
     with (logs_dir / "runs.jsonl").open("a", encoding="utf-8") as log_file:
         log_file.write(json.dumps(run_log_entry, ensure_ascii=True) + "\n")
@@ -462,8 +491,12 @@ def main() -> None:
         print(f"- {reason}")
     print(f"Run Dir:     {report['run_dir']}")
     print(f"Report JSON: {report['report_path']}")
-    print(f"Screenshot:  {report['evidence']['screenshot']}")
-    print(f"DOM:         {report['evidence']['dom_snapshot']}")
+    if report.get("error"):
+        print(f"Error:       {report['error']}")
+        print(f"Error Log:   {report['evidence'].get('error_log')}")
+    else:
+        print(f"Screenshot:  {report['evidence']['screenshot']}")
+        print(f"DOM:         {report['evidence']['dom_snapshot']}")
 
 
 if __name__ == "__main__":
